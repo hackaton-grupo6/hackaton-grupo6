@@ -1,6 +1,0 @@
-Flask
-flask-wtf
-flask-cors
-PyMySQL
-cryptography
-gunicorn

@@ -1,7 +1,0 @@
-Flask
-flask-wtf
-flask-cors
-PyMySQL
-cryptography
-pytest
-pytest-cov
