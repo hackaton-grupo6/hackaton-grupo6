@@ -1,0 +1,83 @@
+name: Frontend
+
+on:
+  push:
+    paths:
+      - 'frontend/**'
+    branches:
+      - main
+
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download do Repositório
+        uses: actions/checkout@v3 # https://github.com/actions/checkout
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Unit Test
+        run: npm run test
+
+      - name: Docker Login
+        run: |
+          echo -E '${{ secrets.GOOGLE_CREDENTIALS }}' > key.json
+          cat key.json | docker login -u _json_key --password-stdin '${{ vars.GOOGLE_ARTIFACT }}'
+
+      - name: Build & Push Image
+        run: |
+          docker build -t ${{ vars.GOOGLE_ARTIFACT }}/${{ vars.GOOGLE_PROJECT_ID }}/${{ vars.GOOGLE_REPONAME }}/${{ vars.GOOGLE_MYAPP }}-frontend:latest .
+          docker push ${{ vars.GOOGLE_ARTIFACT }}/${{ vars.GOOGLE_PROJECT_ID }}/${{ vars.GOOGLE_REPONAME }}/${{ vars.GOOGLE_MYAPP }}-frontend:latest
+
+  Deploy-Homolog:
+    needs: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3 # https://github.com/actions/checkout
+
+      - name: Auth GCP
+        uses: "google-github-actions/auth@v1" # https://github.com/google-github-actions/auth
+        with:
+          credentials_json: "${{ secrets.GOOGLE_CREDENTIALS }}"
+
+      - name: Cloud Run Deploy - Homolog
+        id: homolog-deploy
+        uses: "google-github-actions/deploy-cloudrun@v1" # https://github.com/marketplace/actions/deploy-to-cloud-run
+        with:
+          service: ${{ vars.GOOGLE_MYAPP }}-frontend-homolog
+          image: ${{ vars.GOOGLE_ARTIFACT }}/${{ vars.GOOGLE_PROJECT_ID }}/${{ vars.GOOGLE_REPONAME }}/${{ vars.GOOGLE_MYAPP }}-frontend:latest
+          flags: "--allow-unauthenticated"
+
+      - name: Test Homolog
+        run: 'curl "${{ steps.homolog-deploy.outputs.url }}"'
+
+  Deploy-Production:
+    needs: Deploy-Homolog
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3 # https://github.com/actions/checkout
+
+      - name: Auth GCP
+        uses: "google-github-actions/auth@v1" # https://github.com/google-github-actions/auth
+        with:
+          credentials_json: "${{ secrets.GOOGLE_CREDENTIALS }}"
+
+      - name: Cloud Run Deploy - Production
+        id: prod-deploy
+        uses: "google-github-actions/deploy-cloudrun@v1" # https://github.com/marketplace/actions/deploy-to-cloud-run
+        with:
+          service: ${{ vars.GOOGLE_MYAPP }}-frontend-prod
+          image: ${{ vars.GOOGLE_ARTIFACT }}/${{ vars.GOOGLE_PROJECT_ID }}/${{ vars.GOOGLE_REPONAME }}/${{ vars.GOOGLE_MYAPP }}-frontend:latest
+          flags: "--allow-unauthenticated"
+
+      - name: Test Prod
+        run: 'curl "${{ steps.prod-deploy.outputs.url }}"'
