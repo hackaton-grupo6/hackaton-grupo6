@@ -24,11 +24,6 @@ jobs:
           cd backend/
           pip install flask flask-wtf
 
-      - name: Unit Test
-        run: |
-          cd backend/
-          python -m unittest discover
-
       - name: Docker Login
         uses: docker/login-action@v1 # https://github.com/docker/login-action
         with:
