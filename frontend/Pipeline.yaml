@@ -1,0 +1,66 @@
+# Nombre del Workflow
+name: Frontend Pipeline
+
+# Evento que activa la pipeline en nuestro repositorio
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download do Repositório
+        uses: actions/checkout@v2 # https://github.com/actions/checkout
+        
+      - name: Build Frontend
+        uses: docker://node:16.11.1-buster
+        with:
+          working-directory: ./frontend
+          args: >
+            bash -c "
+            npm ci &&
+            npm run build
+            "
+
+      - name: Docker Login
+        uses: docker/login-action@v1 # https://github.com/docker/login-action
+        with:
+          echo '${{ secrets.¿ }}' > key.json
+          cat key.json | docker login -u _json_key --password-stdin '${{ secrets.GOOGLE_ARTIFACT }}'
+
+      - name: Build & Push Image
+        run: |
+          docker build -t ${{ secrets.GOOGLE_ARTIFACT }}/${{ secrets.GOOGLE_PROJECT_ID }}/${{ secrets.GOOGLE_REPONAME }}/${{ secrets.GOOGLE_MYAPP }}:latest -f frontend/Dockerfile .
+          docker push ${{ secrets.GOOGLE_ARTIFACT }}/${{ secrets.GOOGLE_PROJECT_ID }}/${{ secrets.GOOGLE_REPONAME }}/${{ secrets.GOOGLE_MYAPP }}:latest
+
+  Deploy:
+    needs: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2 # https://github.com/actions/checkout
+
+      - name: Auth GCP
+        uses: google-github-actions/setup-gcloud@master # https://github.com/google-github-actions/setup-gcloud
+        with:
+          project_id: ${{ secrets.GOOGLE_PROJECT_ID }}
+          service_account_key: ${{ secrets.GOOGLE_CREDENTIALS }}
+      
+      - name: Cloud Run Deploy
+        run: |
+          gcloud run deploy my-frontend-app \
+            --quiet \
+            --region us-central1 \
+            --image my-docker-repo/frontend:latest \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars NGINX_CONF='nginx.conf' \
+            --add-cloudsql-instances ${{ secrets.GOOGLE_SQL_INSTANCE_CONNECTION_NAME }} \
+            --update-env-vars INSTANCE_CONNECTION_NAME='${{ secrets.GOOGLE_SQL_INSTANCE_CONNECTION_NAME }}' \
+            --update-env-vars DB_USER='${{ secrets.GOOGLE_SQL_USER }}' \
+            --update-env-vars DB_PASSWORD='${{ secrets.GOOGLE_SQL_PASSWORD }}' \
+            --update-env-vars DB_NAME='${{ secrets.GOOGLE_SQL_DATABASE }}' \
+            --project ${{ secrets.GOOGLE_PROJECT_ID }} \
+            --format json
