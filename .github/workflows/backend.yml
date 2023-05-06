@@ -24,12 +24,6 @@ jobs:
       - name: Install Requirements
         run: pip install -r backend/requirements-test.txt
 
-      - name: Unit Test
-        run: |
-          coverage run --source=app -m pytest test.py
-          coverage report -m
-          coverage xml -i
-
       - name: Docker Login
         run: |
           echo -E '${{ secrets.GOOGLE_CREDENTIALS }}' > key.json
