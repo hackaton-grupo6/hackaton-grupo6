@@ -2,9 +2,6 @@ FROM python:3
 
 RUN pip install --upgrade pip
 
-RUN adduser -D nonroot
-USER nonroot
-
 WORKDIR /app
 
 COPY ./Dockerfile /app
